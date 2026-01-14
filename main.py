@@ -103,7 +103,7 @@ def main_page():
         # OPTIONS
         options_frame = tk.Frame(UI, bg="red")
         of1 = tk.Frame(options_frame, bg="red")
-        tk.Button(of1, text="<每日一语>", **style_common).pack(side="left", padx=10)
+        tk.Button(of1, text="<每日一语>", **style_common, command=DQ_page).pack(side="left", padx=10)
         tk.Button(of1, text="<红色电台>", **style_common).pack(side="left", padx=10)
         of1.pack(side="top", pady=2)
 
@@ -117,6 +117,12 @@ def main_page():
         options_frame.pack(side="top", pady=10)
     except Exception as e:
         print(f"Error in main_page: {e}")
+
+def DQ_page():
+    try:
+        set_screen(720,360)
+    except Exception as e:
+        print(f"Error in DQ_page: {e}")
 
 if __name__ == "__main__":
     load_images_b64()

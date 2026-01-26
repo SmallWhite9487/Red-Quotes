@@ -224,9 +224,9 @@ def Radio_page():
             radio_status_var.set("未选择歌曲")
             return
         pygame.mixer.music.stop()
-        pygame.mixer.music.load(f"{radio_songs[radio_index]}.ogg")
+        pygame.mixer.music.load(radio_songs[radio_index])
         pygame.mixer.music.play(-1 if radio_loop else 0)
-        radio_status_var.set(f"正在播放: {os.path.basename(radio_songs[radio_index].split(".")[0])}")
+        radio_status_var.set(f"正在播放: {os.path.splitext(os.path.basename(radio_songs[radio_index]))[0]}")
     def pause_play():
         if pygame.mixer.music.get_busy():
             pygame.mixer.music.pause()
@@ -251,7 +251,7 @@ def Radio_page():
         if not radio_songs:
             radio_status_var.set("未找到歌曲")
             return
-        set_index((radio_index - 1) % len(radio_songs))
+        set_index((radio_index - 1) % len(radio_songs)) 
         play_current()
     def random_song():
         if not radio_songs:
@@ -331,13 +331,13 @@ def Radio_page():
     prev_volume = 40
 
     set_volume(prev_volume)
-
-    songs_dir = os.path.join(os.getcwd(), "data", "songs")
+    songs_dir = resource_path(os.path.join("data", "songs"))
     radio_songs = []
     if os.path.isdir(songs_dir):
         for name in os.listdir(songs_dir):
             if name.lower().endswith(".ogg"):
-                radio_songs.append(os.path.join(songs_dir, name).split(".")[0])
+                full_path = os.path.join(songs_dir, name)
+                radio_songs.append(full_path)
     radio_songs.sort()
 
     tk.Label(UI, text="=红色电台=", **style_title).pack(pady=10)
@@ -360,7 +360,7 @@ def Radio_page():
     scroll = tk.Scrollbar(list_frame, orient="vertical", command=song_list.yview)
     song_list.configure(yscrollcommand=scroll.set)
     for path in radio_songs:
-        song_list.insert("end", os.path.basename(path))
+        song_list.insert("end", os.path.splitext(os.path.basename(path))[0])
     song_list.grid(row=0, column=0, sticky="nsew")
     scroll.grid(row=0, column=1, sticky="ns")
     song_list.bind("<<ListboxSelect>>", on_select)

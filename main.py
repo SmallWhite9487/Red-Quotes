@@ -3,11 +3,14 @@ import os
 import sqlite3
 import random
 import sys
+from playsound import playsound
+import pygame
 
 def init_windows():
     try:
         global UI, debug
-        debug = True
+        debug = False
+        pygame.mixer.init()
         UI = tk.Tk()
         UI.title("红语录")
         UI.configure(bg="red")
@@ -46,15 +49,15 @@ def images_b64():
     except Exception as e:
         print(f"Error loading images: {e}")
 
-def resource_path(relative_path):
+def resource_path(path):
     if hasattr(sys, "_MEIPASS"):
-        return os.path.join(sys._MEIPASS, relative_path)
-    return os.path.join(os.getcwd(), relative_path)
+        return os.path.join(sys._MEIPASS, path)
+    return os.path.join(os.getcwd(), path)
 
 def DB_load():
     try:
         global QUOTES
-        conn = sqlite3.connect(resource_path("quotes.db"))
+        conn = sqlite3.connect(resource_path(os.path.join("data", "quotes.db")))
         DB = conn.cursor()
         DB.execute("SELECT LID, quote FROM quotes")
         records = DB.fetchall()
@@ -72,7 +75,7 @@ def DB_load():
 def debug_mode():
     def DB_insert(lid, quote):
         try:
-            conn = sqlite3.connect(resource_path("quotes.db"))
+            conn = sqlite3.connect(resource_path(os.path.join("data", "quotes.db")))
             DB = conn.cursor()
             DB.execute("SELECT 1 FROM quotes WHERE LID=? AND quote=?", (lid, quote))
             exists = DB.fetchone()
@@ -124,7 +127,7 @@ def main_page():
         options_frame = tk.Frame(UI, bg="red")
         of1 = tk.Frame(options_frame, bg="red")
         tk.Button(of1, text="<每日一语>", **style_common, command=DQ_page).pack(side="left", padx=10)
-        tk.Button(of1, text="<红色电台>", **style_common).pack(side="left", padx=10)
+        tk.Button(of1, text="<红色电台>", **style_common, command=Radio_page).pack(side="left", padx=10)
         of1.pack(side="top", pady=5)
 
         of2 = tk.Frame(options_frame, bg="red")
@@ -214,6 +217,162 @@ def DQ_page():
         tk.Button(UI, text="<返回>", **style_button, command=main_page).pack(side="bottom",pady=10,padx=10)
     except Exception as e:
         print(f"Error in DQ_page: {e}")
+
+def Radio_page():
+    def play_current():
+        if radio_index < 0 or radio_index >= len(radio_songs):
+            radio_status_var.set("未选择歌曲")
+            return
+        pygame.mixer.music.stop()
+        pygame.mixer.music.load(f"{radio_songs[radio_index]}.ogg")
+        pygame.mixer.music.play(-1 if radio_loop else 0)
+        radio_status_var.set(f"正在播放: {os.path.basename(radio_songs[radio_index].split(".")[0])}")
+    def pause_play():
+        if pygame.mixer.music.get_busy():
+            pygame.mixer.music.pause()
+            radio_status_var.set("已暂停")
+        else:
+            pygame.mixer.music.unpause()
+            radio_status_var.set("继续播放")
+    def stop_play():
+        pygame.mixer.music.stop()
+        radio_status_var.set("已停止")
+    def play_selected():
+        if radio_index < 0 and radio_songs:
+            set_index(0)
+        play_current()
+    def next_song():
+        if not radio_songs:
+            radio_status_var.set("未找到歌曲")
+            return
+        set_index((radio_index + 1) % len(radio_songs))
+        play_current()
+    def prev_song():
+        if not radio_songs:
+            radio_status_var.set("未找到歌曲")
+            return
+        set_index((radio_index - 1) % len(radio_songs))
+        play_current()
+    def random_song():
+        if not radio_songs:
+            radio_status_var.set("未找到歌曲")
+            return
+        set_index(random.randrange(len(radio_songs)))
+        play_current()
+    def toggle_loop():
+        globals()["radio_loop"] = not radio_loop
+        loop_text_var.set(f"循环: {'开' if radio_loop else '关'}")
+        if radio_index >= 0:
+            play_current()
+    def set_index(i):
+        if not radio_songs:
+            radio_status_var.set("未找到歌曲")
+            return
+        if i < 0 or i >= len(radio_songs):
+            return
+        nonlocal song_list
+        song_list.selection_clear(0, "end")
+        song_list.selection_set(i)
+        song_list.see(i)
+        globals()["radio_index"] = i
+    def on_select(event):
+        sel = song_list.curselection()
+        if sel:
+            set_index(sel[0])
+    def set_volume(v):
+        try:
+            v = max(0, min(100, int(v)))
+            if radio_muted:
+                pygame.mixer.music.set_volume(0.0)
+            else:
+                pygame.mixer.music.set_volume(v / 100.0)
+        except Exception as e:
+            print(f"Error set_volume: {e}")
+    def on_volume_change(_):
+        try:
+            val = volume_var.get()
+            if val > 0:
+                nonlocal prev_volume
+                prev_volume = val
+            set_volume(val)
+        except Exception as e:
+            print(f"Error on_volume_change: {e}")
+    def toggle_mute():
+        try:
+            nonlocal radio_muted, prev_volume
+            if radio_muted:
+                radio_muted = False
+                mute_text_var.set("静音: 关")
+                set_volume(prev_volume)
+            else:
+                radio_muted = True
+                mute_text_var.set("静音: 开")
+                set_volume(0)
+        except Exception as e:
+            print(f"Error toggle_mute: {e}")
+    global radio_songs, radio_index, radio_loop, loop_text_var, radio_status_var
+    set_screen(720,360)
+    clear_screen()
+    style_title = {"bg": "red","fg": "gold","font": ("", 28, "bold")}
+    style_subtitle = {"bg": "red","fg": "gold","font": ("", 12, "bold")}
+    style_button = {"bg": "gold","font": ("", 14, "bold"),"width": 9,"height": 2}
+
+    radio_index = -1
+    radio_loop = False
+    loop_text_var = tk.StringVar()
+    radio_status_var = tk.StringVar()
+    loop_text_var.set("循环: 关")
+    radio_status_var.set("未选择歌曲")
+    mute_text_var = tk.StringVar()
+    volume_var = tk.IntVar()
+    mute_text_var.set("静音: 关")
+    volume_var.set(40)
+    radio_muted = False
+    prev_volume = 40
+
+    set_volume(prev_volume)
+
+    songs_dir = os.path.join(os.getcwd(), "data", "songs")
+    radio_songs = []
+    if os.path.isdir(songs_dir):
+        for name in os.listdir(songs_dir):
+            if name.lower().endswith(".ogg"):
+                radio_songs.append(os.path.join(songs_dir, name).split(".")[0])
+    radio_songs.sort()
+
+    tk.Label(UI, text="=红色电台=", **style_title).pack(pady=10)
+    main_frame = tk.Frame(UI, bg="red")
+
+    controls_frame = tk.Frame(main_frame, bg="red")
+    tk.Label(controls_frame, textvariable=radio_status_var, **style_subtitle).grid(row=0, column=0, columnspan=4, sticky="w", pady=5)
+    tk.Button(controls_frame, text="播放", **style_button, command=play_selected).grid(row=1, column=0, padx=3, pady=3)
+    tk.Button(controls_frame, text="暂停/继续", **style_button, command=pause_play).grid(row=1, column=1, padx=3, pady=3)
+    tk.Button(controls_frame, text="停止", **style_button, command=stop_play).grid(row=1, column=2, padx=3, pady=3)
+    tk.Button(controls_frame, text="上一首", **style_button, command=prev_song).grid(row=2, column=0, padx=3, pady=3)
+    tk.Button(controls_frame, text="随机", **style_button, command=random_song).grid(row=2, column=1, padx=3, pady=3)
+    tk.Button(controls_frame, text="下一首", **style_button, command=next_song).grid(row=2, column=2, padx=3, pady=3)
+    tk.Button(controls_frame, text="返回首页", **style_button, command=main_page).grid(row=3, column=0, padx=3, pady=6)
+    tk.Button(controls_frame, textvariable=loop_text_var, **style_button, command=toggle_loop).grid(row=3, column=2, padx=3, pady=3)
+    controls_frame.pack(side="left", padx=10, pady=5)
+
+    list_frame = tk.Frame(main_frame, bg="red")
+    song_list = tk.Listbox(list_frame, width=30, font=("", 12), bg="gold")
+    scroll = tk.Scrollbar(list_frame, orient="vertical", command=song_list.yview)
+    song_list.configure(yscrollcommand=scroll.set)
+    for path in radio_songs:
+        song_list.insert("end", os.path.basename(path))
+    song_list.grid(row=0, column=0, sticky="nsew")
+    scroll.grid(row=0, column=1, sticky="ns")
+    song_list.bind("<<ListboxSelect>>", on_select)
+    list_frame.pack(side="right", padx=10, pady=5, fill="y")
+
+    volume_frame = tk.Frame(list_frame, bg="red")
+    tk.Label(volume_frame, text="音量", **style_subtitle).grid(row=4, column=0, sticky="e", padx=3, pady=3)
+    tk.Scale(volume_frame, variable=volume_var, from_=0, to=100, orient="horizontal", length=120, command=on_volume_change).grid(row=4, column=1, columnspan=2, padx=3, pady=3)
+    tk.Button(volume_frame, textvariable=mute_text_var, **style_button, command=toggle_mute).grid(row=4, column=3, padx=3, pady=3)
+    volume_frame.grid(row=1, column=0, columnspan=2, pady=10)
+
+    main_frame.pack(fill="both", expand=True, padx=10)
 
 if __name__ == "__main__":
     images_b64()
